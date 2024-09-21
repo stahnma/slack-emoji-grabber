@@ -4,10 +4,6 @@ Do you ever wish you could grab the emojis from one slack team and keep them? Ma
 
 # Setup
 
-You need one module that isn't in the stdlib.
-
-`go get -u github.com/nlopes/slack`
-
 You can also simply run `make setup`
 
 # Build
@@ -19,10 +15,14 @@ or run
 `make`
 
 # Configure
-To run the `slack_emoji_grabber` you need your `SLACK_TOKEN` environment variable set. If you don't have it set, it won't work.
+To run the `slack_emoji_grabber`, you need to set your **Slack Bot User OAuth Token** as `SLACK_TOKEN` in an environment variable set. The Slack Bot User OAuth Token can be found under "OAuth & Permissions" in Slack API: Applications settings under a configured & connected Slack Application for the workspace. 
+
+Example: `export SLACK_TOKEN="xoxb-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWxYz"`
+
 
 # Run
 `./slack_emoji_grabber`
 
 # License
 MIT
+

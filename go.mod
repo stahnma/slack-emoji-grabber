@@ -1,6 +1,6 @@
 module github.com/stahnma/slack_emoji_grabber
 
-go 1.21
+go 1.23.0
 
 require github.com/slack-go/slack v0.12.3
 

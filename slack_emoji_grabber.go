@@ -1,68 +1,49 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
-	"github.com/slack-go/slack"
-	"io"
-	"net/http"
+	"log"
+	"log/slog"
 	"os"
-	"strings"
+	"os/signal"
+
+	"github.com/slack-go/slack"
 )
 
-func downloadFile(filepath string, url string) error {
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+// Compile-time check that *slack.Client satisfies SlackClient.
+var _ SlackClient = (*slack.Client)(nil)
 
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
+var version = "dev"
 
 func main() {
-	slacktoken := os.Getenv("SLACK_TOKEN")
-	if slacktoken == "" {
-		fmt.Println("You need to set SLACK_TOKEN.")
-		os.Exit(1)
-	}
-	api := slack.New(slacktoken)
-	emojiset, err := api.GetEmoji()
-	if err != nil {
-		fmt.Printf("%s\n", err)
+	outputDir := flag.String("output", "emojis", "directory to save emojis")
+	showVersion := flag.Bool("version", false, "print version and exit")
+	verbose := flag.Bool("v", false, "enable verbose/debug logging")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
 		return
 	}
 
-	// make the dir
-	os.Mkdir("./emojis", 0755)
-	// loop over each emoji
-	for name, uri := range emojiset {
-		filepath := "./emojis/" + name
-		lastdotindex := strings.LastIndexAny(uri, ".")
-		if lastdotindex != -1 {
-			suffix := uri[lastdotindex:]
-			filepath = filepath + suffix
-		}
-		if strings.Contains(uri, "alias:") {
-			fmt.Println("Skipping " + name + " because it is an alias.")
-			continue
-		}
-		// check to see if we have the download already
-		if _, err := os.Stat(filepath); os.IsNotExist(err) {
-			// if no, download
-			fmt.Println(filepath)
-			downloadFile(filepath, uri)
-		} else {
-			fmt.Println("Already found " + filepath)
-		}
+	if *verbose {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
+
+	token := os.Getenv("SLACK_TOKEN")
+	if token == "" {
+		log.Fatal("SLACK_TOKEN environment variable is required")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	g := NewGrabber(slack.New(token))
+	g.OutputDir = *outputDir
+
+	if err := g.Run(ctx); err != nil {
+		log.Fatal(err)
 	}
 }

@@ -3,8 +3,12 @@ package main
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -27,6 +31,41 @@ func NewGrabber(client SlackClient) *Grabber {
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		OutputDir:  "emojis",
 	}
+}
+
+// Run fetches the emoji list and downloads each one.
+func (g *Grabber) Run() error {
+	emojis, err := g.Client.GetEmoji()
+	if err != nil {
+		return fmt.Errorf("fetching emoji list: %w", err)
+	}
+
+	if err := os.MkdirAll(g.OutputDir, 0755); err != nil {
+		return fmt.Errorf("creating output directory: %w", err)
+	}
+
+	for name, uri := range emojis {
+		if strings.HasPrefix(uri, "alias:") {
+			slog.Debug("skipping alias", "name", name)
+			continue
+		}
+
+		ext := path.Ext(uri)
+		fpath := filepath.Join(g.OutputDir, name+ext)
+
+		if _, err := os.Stat(fpath); err == nil {
+			slog.Debug("skipping existing", "path", fpath)
+			continue
+		}
+
+		slog.Info("downloading", "name", name, "path", fpath)
+		if err := g.downloadFile(fpath, uri); err != nil {
+			slog.Error("download failed", "name", name, "err", err)
+			continue
+		}
+	}
+
+	return nil
 }
 
 func (g *Grabber) downloadFile(fpath, url string) error {

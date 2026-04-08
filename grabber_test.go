@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +62,101 @@ func TestDownloadFile_HTTPError(t *testing.T) {
 	// Partial file should not exist
 	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
 		t.Error("expected partial file to be removed after HTTP error")
+	}
+}
+
+func TestRun_DownloadsEmojis(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("image-bytes"))
+	}))
+	defer server.Close()
+
+	client := &mockSlackClient{
+		emojis: map[string]string{
+			"partyparrot": server.URL + "/partyparrot.gif",
+			"thumbsup":    server.URL + "/thumbsup.png",
+		},
+	}
+
+	dir := t.TempDir()
+	g := NewGrabber(client)
+	g.OutputDir = dir
+
+	if err := g.Run(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 2 {
+		t.Errorf("expected 2 files, got %d", len(entries))
+	}
+}
+
+func TestRun_SkipsAliases(t *testing.T) {
+	client := &mockSlackClient{
+		emojis: map[string]string{
+			"myalias": "alias:partyparrot",
+		},
+	}
+
+	dir := t.TempDir()
+	g := NewGrabber(client)
+	g.OutputDir = dir
+
+	if err := g.Run(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("expected 0 files (alias skipped), got %d", len(entries))
+	}
+}
+
+func TestRun_SkipsExistingFiles(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("new-data"))
+	}))
+	defer server.Close()
+
+	client := &mockSlackClient{
+		emojis: map[string]string{
+			"existing": server.URL + "/existing.png",
+		},
+	}
+
+	dir := t.TempDir()
+	g := NewGrabber(client)
+	g.OutputDir = dir
+
+	// Pre-create the file
+	os.WriteFile(filepath.Join(dir, "existing.png"), []byte("old-data"), 0644)
+
+	if err := g.Run(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// File should NOT be overwritten
+	data, _ := os.ReadFile(filepath.Join(dir, "existing.png"))
+	if string(data) != "old-data" {
+		t.Error("existing file was overwritten")
+	}
+}
+
+func TestRun_APIError(t *testing.T) {
+	client := &mockSlackClient{
+		err: errors.New("slack api error"),
+	}
+
+	g := NewGrabber(client)
+	g.OutputDir = t.TempDir()
+
+	err := g.Run()
+	if err == nil {
+		t.Fatal("expected error from API failure")
+	}
+	if !strings.Contains(err.Error(), "slack api error") {
+		t.Errorf("error should contain API error, got: %v", err)
 	}
 }
 

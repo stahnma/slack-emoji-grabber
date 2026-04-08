@@ -1,13 +1,18 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"github.com/slack-go/slack"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/slack-go/slack"
 )
+
+var version = "dev"
 
 func downloadFile(filepath string, url string) error {
 	// Get the data
@@ -30,10 +35,17 @@ func downloadFile(filepath string, url string) error {
 }
 
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
+
 	slacktoken := os.Getenv("SLACK_TOKEN")
 	if slacktoken == "" {
-		fmt.Println("You need to set SLACK_TOKEN.")
-		os.Exit(1)
+		log.Fatal("SLACK_TOKEN environment variable is required")
 	}
 	api := slack.New(slacktoken)
 	emojiset, err := api.GetEmoji()

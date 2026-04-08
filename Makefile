@@ -3,14 +3,15 @@ BINARY := slack-emoji-grabber
 MODULE := github.com/stahnma/slack-emoji-grabber
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
+CMD := ./cmd/slack-emoji-grabber
 
 .PHONY: build clean test lint vet fmt run install help
 
 build: ## Build the binary
-	go build $(LDFLAGS) -o $(BINARY) .
+	go build $(LDFLAGS) -o $(BINARY) $(CMD)
 
 install: ## Install to GOPATH/bin
-	go install $(LDFLAGS) .
+	go install $(LDFLAGS) $(CMD)
 
 test: ## Run tests
 	go test ./... -v

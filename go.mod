@@ -1,4 +1,4 @@
-module github.com/stahnma/slack_emoji_grabber
+module github.com/stahnma/slack-emoji-grabber
 
 go 1.25.5
 

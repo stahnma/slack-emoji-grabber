@@ -1,28 +1,63 @@
-# Grab you slack team's emojis
+# slack-emoji-grabber
 
-Do you ever wish you could grab the emojis from one slack team and keep them? Maybe you'd put them in another team? Well now you can. This simple little golang CLI will grab all the emojis and put them in `./emojis`. It also won't download an emoji if you already have it in your `./emojis` dir. It also skips aliases because seriously, you have them already.
+A simple CLI tool to download and archive your Slack workspace's custom emojis. It saves them to a local directory, skips aliases, and avoids re-downloading emojis you already have.
 
-# Setup
+## Install
 
-You can also simply run `make setup`
+```bash
+go install github.com/stahnma/slack-emoji-grabber@latest
+```
 
-# Build
+Or build from source:
 
-`go build slack_emoji_grabber.go`
+```bash
+make build
+```
 
-or run
+## Configure
 
-`make`
+You need a **Slack Bot User OAuth Token** with the `emoji:read` scope. Find it under "OAuth & Permissions" in your [Slack App settings](https://api.slack.com/apps).
 
-# Configure
-To run the `slack_emoji_grabber`, you need to set your **Slack Bot User OAuth Token** as `SLACK_TOKEN` in an environment variable set. The Slack Bot User OAuth Token can be found under "OAuth & Permissions" in Slack API: Applications settings under a configured & connected Slack Application for the workspace. 
+```bash
+export SLACK_TOKEN="xoxb-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWxYz"
+```
 
-Example: `export SLACK_TOKEN="xoxb-1234567890-0987654321-AbCdEfGhIjKlMnOpQrStUvWxYz"`
+## Usage
 
+```bash
+slack-emoji-grabber [flags]
+```
 
-# Run
-`./slack_emoji_grabber`
+### Flags
 
-# License
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-output` | `emojis` | Directory to save emojis |
+| `-v` | `false` | Enable verbose/debug logging |
+| `-version` | | Print version and exit |
+
+### Examples
+
+```bash
+# Download all emojis to ./emojis
+slack-emoji-grabber
+
+# Download to a custom directory
+slack-emoji-grabber -output /tmp/my-emojis
+
+# See what's happening
+slack-emoji-grabber -v
+```
+
+## Development
+
+```bash
+make help      # Show available targets
+make build     # Build the binary
+make test      # Run tests
+make lint      # Run vet + gofmt
+```
+
+## License
+
 MIT
-

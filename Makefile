@@ -1,19 +1,39 @@
+export CGO_ENABLED := 0
+BINARY := slack-emoji-grabber
+MODULE := github.com/stahnma/slack-emoji-grabber
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 
-.DEFAULT_GOAL := build
+.PHONY: build clean test lint vet fmt run install help
 
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(firstword $(MAKEFILE_LIST)) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+build: ## Build the binary
+	go build $(LDFLAGS) -o $(BINARY) .
 
-fmt: ## Format all code
-	go fmt *.go
+install: ## Install to GOPATH/bin
+	go install $(LDFLAGS) .
 
-build: fmt ## Build the go program
-	go build .
+test: ## Run tests
+	go test ./... -v
 
-clean: ## Remove artiacts
-	rm -f main slack_emoji_grabber
+test-short: ## Run tests (short mode)
+	go test ./... -short
 
-run: build ## Run program
-	./slack_emoji_grabber
+vet: ## Run go vet
+	go vet ./...
 
-.PHONY: help fmt clean
+fmt: ## Run gofmt
+	gofmt -s -w .
+
+lint: vet fmt ## Run all linters
+
+tidy: ## Run go mod tidy
+	go mod tidy
+
+clean: ## Remove build artifacts
+	rm -f $(BINARY)
+	go clean
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+.DEFAULT_GOAL := help

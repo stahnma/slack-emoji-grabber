@@ -22,7 +22,7 @@ func (m *mockSlackClient) GetEmoji() (map[string]string, error) {
 
 func TestDownloadFile_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("fake-image-data"))
+		_, _ = w.Write([]byte("fake-image-data"))
 	}))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestDownloadFile_HTTPError(t *testing.T) {
 
 func TestRun_DownloadsEmojis(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("image-bytes"))
+		_, _ = w.Write([]byte("image-bytes"))
 	}))
 	defer server.Close()
 
@@ -115,7 +115,7 @@ func TestRun_SkipsAliases(t *testing.T) {
 
 func TestRun_SkipsExistingFiles(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("new-data"))
+		_, _ = w.Write([]byte("new-data"))
 	}))
 	defer server.Close()
 
@@ -130,7 +130,9 @@ func TestRun_SkipsExistingFiles(t *testing.T) {
 	g.OutputDir = dir
 
 	// Pre-create the file
-	os.WriteFile(filepath.Join(dir, "existing.png"), []byte("old-data"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "existing.png"), []byte("old-data"), 0644); err != nil {
+		t.Fatalf("writing test fixture: %v", err)
+	}
 
 	if err := g.Run(); err != nil {
 		t.Fatalf("unexpected error: %v", err)

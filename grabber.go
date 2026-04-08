@@ -73,7 +73,7 @@ func (g *Grabber) downloadFile(fpath, url string) error {
 	if err != nil {
 		return fmt.Errorf("fetching %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d for %s", resp.StatusCode, url)
@@ -85,8 +85,8 @@ func (g *Grabber) downloadFile(fpath, url string) error {
 	}
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
-		out.Close()
-		os.Remove(fpath)
+		_ = out.Close()
+		_ = os.Remove(fpath)
 		return fmt.Errorf("writing %s: %w", fpath, err)
 	}
 

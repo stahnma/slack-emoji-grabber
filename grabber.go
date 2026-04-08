@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -34,7 +35,7 @@ func NewGrabber(client SlackClient) *Grabber {
 }
 
 // Run fetches the emoji list and downloads each one.
-func (g *Grabber) Run() error {
+func (g *Grabber) Run(ctx context.Context) error {
 	emojis, err := g.Client.GetEmoji()
 	if err != nil {
 		return fmt.Errorf("fetching emoji list: %w", err)
@@ -45,6 +46,10 @@ func (g *Grabber) Run() error {
 	}
 
 	for name, uri := range emojis {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if strings.HasPrefix(uri, "alias:") {
 			slog.Debug("skipping alias", "name", name)
 			continue
@@ -59,7 +64,7 @@ func (g *Grabber) Run() error {
 		}
 
 		slog.Info("downloading", "name", name, "path", fpath)
-		if err := g.downloadFile(fpath, uri); err != nil {
+		if err := g.downloadFile(ctx, fpath, uri); err != nil {
 			slog.Error("download failed", "name", name, "err", err)
 			continue
 		}
@@ -68,8 +73,13 @@ func (g *Grabber) Run() error {
 	return nil
 }
 
-func (g *Grabber) downloadFile(fpath, url string) error {
-	resp, err := g.HTTPClient.Get(url)
+func (g *Grabber) downloadFile(ctx context.Context, fpath, url string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("creating request for %s: %w", url, err)
+	}
+
+	resp, err := g.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("fetching %s: %w", url, err)
 	}

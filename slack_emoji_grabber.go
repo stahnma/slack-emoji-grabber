@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
 
 	"github.com/slack-go/slack"
 )
+
+// Compile-time check that *slack.Client satisfies SlackClient.
+var _ SlackClient = (*slack.Client)(nil)
 
 var version = "dev"
 
@@ -32,10 +37,13 @@ func main() {
 		log.Fatal("SLACK_TOKEN environment variable is required")
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	g := NewGrabber(slack.New(token))
 	g.OutputDir = *outputDir
 
-	if err := g.Run(); err != nil {
+	if err := g.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }

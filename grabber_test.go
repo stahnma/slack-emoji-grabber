@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,7 @@ func TestDownloadFile_Success(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "test.png")
 
-	err := g.downloadFile(dest, server.URL+"/emoji.png")
+	err := g.downloadFile(context.Background(), dest, server.URL+"/emoji.png")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestDownloadFile_HTTPError(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "test.png")
 
-	err := g.downloadFile(dest, server.URL+"/missing.png")
+	err := g.downloadFile(context.Background(), dest, server.URL+"/missing.png")
 	if err == nil {
 		t.Fatal("expected error for 404 response")
 	}
@@ -62,6 +63,40 @@ func TestDownloadFile_HTTPError(t *testing.T) {
 	// Partial file should not exist
 	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
 		t.Error("expected partial file to be removed after HTTP error")
+	}
+}
+
+func TestDownloadFile_ConnectionError(t *testing.T) {
+	g := NewGrabber(&mockSlackClient{})
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "test.png")
+
+	// Use a listener that immediately closes to guarantee connection refused
+	err := g.downloadFile(context.Background(), dest, "http://127.0.0.1:1/unreachable.png")
+	if err == nil {
+		t.Fatal("expected error for connection failure")
+	}
+	if !strings.Contains(err.Error(), "fetching") {
+		t.Errorf("error should wrap fetch context, got: %v", err)
+	}
+}
+
+func TestDownloadFile_CreateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer server.Close()
+
+	g := NewGrabber(&mockSlackClient{})
+	// Write to a path inside a non-existent directory
+	dest := filepath.Join(t.TempDir(), "nodir", "sub", "test.png")
+
+	err := g.downloadFile(context.Background(), dest, server.URL+"/emoji.png")
+	if err == nil {
+		t.Fatal("expected error when creating file in non-existent directory")
+	}
+	if !strings.Contains(err.Error(), "creating") {
+		t.Errorf("error should wrap create context, got: %v", err)
 	}
 }
 
@@ -82,7 +117,7 @@ func TestRun_DownloadsEmojis(t *testing.T) {
 	g := NewGrabber(client)
 	g.OutputDir = dir
 
-	if err := g.Run(); err != nil {
+	if err := g.Run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -103,7 +138,7 @@ func TestRun_SkipsAliases(t *testing.T) {
 	g := NewGrabber(client)
 	g.OutputDir = dir
 
-	if err := g.Run(); err != nil {
+	if err := g.Run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -134,7 +169,7 @@ func TestRun_SkipsExistingFiles(t *testing.T) {
 		t.Fatalf("writing test fixture: %v", err)
 	}
 
-	if err := g.Run(); err != nil {
+	if err := g.Run(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -153,12 +188,36 @@ func TestRun_APIError(t *testing.T) {
 	g := NewGrabber(client)
 	g.OutputDir = t.TempDir()
 
-	err := g.Run()
+	err := g.Run(context.Background())
 	if err == nil {
 		t.Fatal("expected error from API failure")
 	}
 	if !strings.Contains(err.Error(), "slack api error") {
 		t.Errorf("error should contain API error, got: %v", err)
+	}
+}
+
+func TestRun_MkdirAllError(t *testing.T) {
+	client := &mockSlackClient{
+		emojis: map[string]string{
+			"test": "http://example.com/test.png",
+		},
+	}
+
+	g := NewGrabber(client)
+	// Use a file as the output dir so MkdirAll fails
+	tmpFile := filepath.Join(t.TempDir(), "notadir")
+	if err := os.WriteFile(tmpFile, []byte("block"), 0644); err != nil {
+		t.Fatalf("creating blocker file: %v", err)
+	}
+	g.OutputDir = filepath.Join(tmpFile, "subdir")
+
+	err := g.Run(context.Background())
+	if err == nil {
+		t.Fatal("expected error when output dir cannot be created")
+	}
+	if !strings.Contains(err.Error(), "creating output directory") {
+		t.Errorf("error should wrap mkdir context, got: %v", err)
 	}
 }
 
